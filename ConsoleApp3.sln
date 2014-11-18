@@ -5,7 +5,7 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{002A2DE9-8BB6-484D-9802-7E4AD4084715}") = "Servidor", "ConsoleApp3.visualdproj", "{53AA0486-362A-4A7D-9824-01CACFA4A0AB}"
 EndProject
-Project("{002A2DE9-8BB6-484D-9802-7E4AD4084715}") = "Cliente", "..\ConsoleApp4\ConsoleApp4.visualdproj", "{5664D4EA-5EE4-4BB5-A021-159B4B7CCDE0}"
+Project("{002A2DE9-8BB6-484D-9802-7E4AD4084715}") = "Cliente", "ConsoleApp4.visualdproj", "{5664D4EA-5EE4-4BB5-A021-159B4B7CCDE0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
