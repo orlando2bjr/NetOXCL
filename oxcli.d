@@ -1,3 +1,4 @@
+module oxcli;
 import std.process, std.stdio, std.string, std.random, std.conv, std.socket;
 // http://ddili.org/ders/d.en/logical_expressions.html
 version(Windows)
@@ -99,7 +100,9 @@ class OX
 	Player[2] players = [Player.O, Player.X];
 	Player turnPlayer;
 	Player thisPlayer;
+	Player winner;
 	auto hasPlayerMoved = false;
+	auto hasPlayerWon = false;
 	Socket socket;
 	char[1024] buffer;
 	auto isNodeTypeUndefined = true;
@@ -235,10 +238,32 @@ class OX
 	{
 		socket.close();
 	}
+	void restart()
+	{
+		for(int i = 0; i < 9; i++)
+		{
+			board[i] = Occupant.None;
+			available[i] = new string(i);
+		}
+		//foreach(occupant; board)
+		//{
+		//    *(occupant).ptr = Occupant.None;
+		//}
+		//available = new string[9];
+		//foreach(position; available)
+		//{
+		//    position = new string(positionIndex);
+		//    positionIndex++;
+		//}
+		areThereChanges = true;
+		render();
+		start();
+	}
 	void start()
 	{
 		socket.blocking = false;
 		isPlaying = true;
+		hasPlayerWon = false;
 		while(isPlaying)
 		{
 			if(areThereChanges)
@@ -269,6 +294,35 @@ class OX
 		consoleFixEnd();
 
 		writeln(message);
+		if(hasPlayerWon)
+		{
+			consoleFixBegin();
+				write("\n\n\n\tPARABÉNS, ");
+				printPlayer(winner);
+				writeln(" venceu a partida!!!");
+				if(winner == thisPlayer)
+				{
+					writeln("Será que seu oponente quer uma revanche!?");
+					consoleFixEnd();
+				}
+				else
+				{
+					consoleFixEnd();
+					string answer;
+					do
+					{
+						consoleFixBegin();
+							writeln("E aí? Vai uma revanche? (s = sim, n = não");
+						consoleFixEnd();
+						answer = readln().chomp();
+					} while (answer != "s" && answer != "n");
+					if(answer == "s")
+						restart();
+					else
+						isPlaying = false;
+				}
+
+		}
 	}
 	void input()
 	{
@@ -312,6 +366,13 @@ class OX
 		else
 			return Player.O;
 	}
+	Player occupantToPlayer(Occupant occupant)
+	{
+		if(occupant == Occupant.O)
+			return Player.O;
+		else
+			return Player.X;
+	}
 	void update()
 	{
 		playerMove = 0;
@@ -328,7 +389,6 @@ class OX
 				if(playerMoves(playerMove))
 				{
 					socket.send(sendMessage);
-					updateAvailablePositions();
 					nextPlayer();
 				}
 				else
@@ -359,6 +419,57 @@ class OX
 			}
 		}
 		sendMessage = receivedMessage = "";
+		hasPlayerWon = checkForVictory();
+	}
+	bool checkForVictory()
+	{
+		// centro primeiro
+		if(board[4] != Occupant.None)
+		{
+			for(int i = 0; i < 4; i++)
+			{
+				int offset = 4 - i;
+				if((board[4] == board[4 - offset]) &&
+				   (board[4] == board[4 + offset]))
+				{
+					hasPlayerWon = true;
+					winner = occupantToPlayer(board[4]);
+					return true;
+				}
+
+			}
+		}
+		// perímetro
+		int[4] perimeter = [1, 3, 5, 7];
+		foreach(index; perimeter)
+		{
+			if(board[index] != Occupant.None)
+			{
+				// horizontais
+				if((index % 3) == 1)
+				{
+					if((board[index] == board[index - 1]) &&
+						(board[index] == board[index + 1]))
+					{
+						hasPlayerWon = true;
+						winner = occupantToPlayer(board[index]);
+						return true;
+					}
+				}
+				// verticais
+				else 
+				{
+					if((board[index] == board[index - 3]) &&
+						(board[index] == board[index + 3]))
+					{
+						hasPlayerWon = true;
+						winner = occupantToPlayer(board[index]);
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 	void startServer(InternetAddress serverAddress)
 	{
@@ -417,15 +528,6 @@ class OX
 		}
 
 	}
-	void updateAvailablePositions(){
-		for(int i = 0; i < board.length; i++)
-		{
-			if(board[i] == Occupant.None)
-				available[i] = to!string(i);
-			else
-				available[i] = "-";
-		}
-	}
 	bool playerMoves(size_t toPosition)
 	{
 		if(board[toPosition - 1] != Occupant.None)
@@ -435,20 +537,6 @@ class OX
 			board[toPosition - 1] = thisPlayer;
 			return true;
 		}
-		//do
-		//{
-		//    write(turnPlayer, ", escolha uma posição: ");
-		//    readf(" %s", &move);
-		//    if(board[move - 1] != Occupant.None)
-		//    {
-		//        writeln(turnPlayer, ", esta posição já está ocupada.");
-		//        write("Por favor, ");
-		//    }
-		//} while (board[move - 1] != Occupant.None);
-		//board[move - 1] = turnPlayer;
-		//printBoard();
-		//nextPlayer();
-
 	}
 	void nextPlayer()
 	{
