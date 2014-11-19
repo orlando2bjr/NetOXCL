@@ -198,6 +198,6 @@
  </Config>
  <Folder name="Cliente">
   <File path="client.d" />
-  <File path="..\OXCLI\oxcli.d" />
+  <File path="oxcli.d" />
  </Folder>
 </DProject>
