@@ -196,8 +196,8 @@
   <postBuildCommand />
   <filesToClean>*.obj;*.cmd;*.build;*.json;*.dep</filesToClean>
  </Config>
- <Folder name="Cliente">
-  <File path="client.d" />
+ <Folder name="NetOXCLI">
+  <File path="main.d" />
   <File path="oxcli.d" />
  </Folder>
 </DProject>

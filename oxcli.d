@@ -1,4 +1,4 @@
-import std.stdio, std.string, std.random, std.conv, std.socket;
+import std.process, std.stdio, std.string, std.random, std.conv, std.socket;
 // http://ddili.org/ders/d.en/logical_expressions.html
 version(Windows)
 {
@@ -87,19 +87,22 @@ class OX
 		Server,
 		Client
 	}
+	auto isPlaying = true;
 	Occupant[9] board;
 	string[9] available;
 	size_t positionIndex;
+	string playerMessage;
+	size_t playerMove;
 	Player[2] players = [Player.O, Player.X];
-	int turnPlayer;
-	Socket server;
-	Socket client;
+	Player turnPlayer;
+	Player thisPlayer;
+	Socket socket;
 	char[1024] buffer;
 	auto isNodeTypeUndefined = true;
 	NodeType nodeType = void;
 	auto address = "localhost";
 	InternetAddress serverAddress;
-	this()
+	this() // configura o jogo
 	{
 		serverAddress = new InternetAddress("localhost", 2525);
 		// guardar valor inicial do código de página do console
@@ -119,11 +122,24 @@ class OX
 			// tentar conexão local
 			try
 			{
-				server = new Socket(AddressFamily.INET, SocketType.STREAM);
+				socket = new Socket(AddressFamily.INET, SocketType.STREAM);
 				consoleFixBegin();
 					writeln("Tentando conectar em: ", serverAddress.toAddrString(), ".");
 				consoleFixEnd();
-				server.connect(serverAddress);
+				socket.connect(serverAddress);
+				// receber qual é o jogador do servidor
+				auto got = socket.receive(buffer);
+				// definir jogador oposto
+				if(buffer[0] == 'O')
+				{
+					thisPlayer = Player.X;
+					turnPlayer = Player.O;
+				}
+				else
+				{
+					thisPlayer = Player.O;
+					turnPlayer = Player.X;
+				}
 				nodeType = NodeType.Client;
 				consoleFixBegin();
 					writeln("Conectado em: ", serverAddress.toAddrString(), ".");
@@ -148,27 +164,10 @@ class OX
 					case 1:
 						startServer(new InternetAddress("localhost", 2525));
 						isNodeTypeUndefined = false;
-						//nodeType = NodeType.Server; // servidor, não tentar mais conectar
-						//client = new TcpSocket;
-						//assert(client.isAlive);
-						//serverAddress = new InternetAddress("localhost", 2525);
-						//socket.bind(serverAddress);
-						//socket.listen(1);
-						//consoleFixBegin();
-						//    writeln("Servidor ouvindo em ", serverAddress.toAddrString(), ":",  serverAddress.toPortString());
-						//consoleFixEnd();
 						break;
 					case 2:
 						startServer(new InternetAddress(2525));
 						isNodeTypeUndefined = false;
-						//nodeType = NodeType.Server; // servidor, não tentar mais conectar
-						//socket = new TcpSocket;
-						//assert(socket.isAlive);
-						//socket.bind(new InternetAddress(2525));
-						//socket.listen(1);
-						//consoleFixBegin();
-						//    writeln("Servidor ouvindo em ", serverAddress.toAddrString(), ":",  serverAddress.toPortString());
-						//consoleFixEnd();
 						break;
 					case 3:
 						nodeType = NodeType.Client;
@@ -206,20 +205,115 @@ class OX
 				}
 			}
 		}
-
+		render();
 		switch(nodeType)
 		{
 			case NodeType.Server:
+				auto rng = Random(unpredictableSeed);
+				auto player = uniform(0, 2, rng);
+				if(players[player] == Player.O)
+				{
+					turnPlayer = Player.O;
+					thisPlayer = turnPlayer;
+				}
+				else
+				{
+					thisPlayer = Player.X;
+					thisPlayer = turnPlayer;
+				}
 				break;
 			case NodeType.Client:
 				break;
 			default: break;
 		}
 
-		auto rng = Random(unpredictableSeed);
-		turnPlayer = uniform(0, 2, rng);
-		printCurrentPlayer();
 	}
+	~this() // encerra o jogo e fecha conexões
+	{
+		socket.close();
+	}
+	void start()
+	{
+		socket.blocking = false;
+		isPlaying = true;
+		while(isPlaying)
+		{
+			render();
+			input();
+			update();
+		}
+	}
+	void render()
+	{
+		version(Windows) {
+			system("cls");
+		} else {
+			system("clear");
+		}
+		printBoard();
+		write("voce e ");
+		printPlayer(thisPlayer);
+		write("o turno eh de ");
+		printPlayer(turnPlayer);
+		writeln(playerMessage);
+	}
+	void input()
+	{
+		// ler e imprimir
+		switch(nodeType)
+		{
+			default:break;
+			case NodeType.Server:
+				break;
+			case NodeType.Client:
+				break;
+		}
+		auto got = socket.receive(buffer);
+		auto send = "";
+		if(got > 0)
+		{
+			// posição
+			if(buffer[0] == '#' && got == 2)
+			{
+				writefln("recebi posição %s", buffer[1]);
+				playerMove = buffer[1];
+			}
+			else
+			{
+				playerMessage = to!(string)(buffer[0 .. got]);
+				playerMove = 0;
+			}
+		}
+		else
+		{
+			if(turnPlayer == thisPlayer)
+			{
+				foreach(line; stdin.byLine)
+					{
+						if(line[0] == '#' && line.length == 2)
+						{
+							if(thisPlayer == Player.O)
+								turnPlayer = Player.X;
+							else
+								turnPlayer = Player.O;
+						}
+						socket.send(line);
+						break;
+						//if(thisPlayer == Player.O)
+						//    thisPlayer = Player.X;
+						//else
+						//    thisPlayer = Player.O;
+					}
+			}
+		}
+
+	}
+	void update()
+	{
+		if(playerMove > 0)
+			playerMoves();
+	}
+
 	void startServer(InternetAddress serverAddress)
 	{
 		nodeType = NodeType.Server; // servidor, não tentar mais conectar
@@ -231,27 +325,22 @@ class OX
 		consoleFixBegin();
 			writeln("Servidor ouvindo em ", serverAddress.toAddrString(), ":",  serverAddress.toPortString());
 		consoleFixEnd();
-		client = listener.accept();
+		socket = listener.accept();
 		consoleFixBegin();
-			writeln("Aceitei conexão de ", client.remoteAddress().toAddrString(), ":",  serverAddress.toPortString());
+			writeln("Aceitei conexão de ", socket.remoteAddress().toAddrString(), ":",  serverAddress.toPortString());
 		consoleFixEnd();
 		listener.close();
+		socket.send(to!(char[])(thisPlayer));
 
 
 	}
-	void printCurrentPlayer()
+	void printPlayer(Player player)
 	{
-		if(players[turnPlayer] == Player.O)
+		if(player == Player.O)
 			writeln("Círculos");
 		else
 			writeln("Machados");
 	}
-	//this(int firstPlayer)
-	//{
-	//    init();
-	//    turnPlayer = firstPlayer;
-	//    printCurrentPlayer();
-	//}
 	void writePosition(Occupant quadrant, size_t position)
 	
 	{
@@ -260,7 +349,7 @@ class OX
 		else
 			write(*(quadrant).ptr);
 	}
-	void printBoard(T)(T board[9])
+	void printBoard()
 	{
 		// imprimir tabuleiro
 		size_t lineCounter;
@@ -293,25 +382,31 @@ class OX
 				available[i] = "-";
 		}
 	}
-	void playerMove(ref Occupant[9] board, ref Player[2] players, ref int turnPlayer, ref string[9] available)
+	void playerMoves()
 	{
 		int move;
 		updateAvailablePositions(board, available);
 		do
 		{
-			write(players[turnPlayer], ", escolha uma posição: ");
+			write(turnPlayer, ", escolha uma posição: ");
 			readf(" %s", &move);
 			if(board[move - 1] != Occupant.None)
 			{
-				writeln(players[turnPlayer], ", esta posição já está ocupada.");
+				writeln(turnPlayer, ", esta posição já está ocupada.");
 				write("Por favor, ");
 			}
 		} while (board[move - 1] != Occupant.None);
-		board[move - 1] = players[turnPlayer];
-		printBoard(board);
-		turnPlayer = (turnPlayer + 1) % players.length;
+		board[move - 1] = turnPlayer;
+		printBoard();
+		nextPlayer();
 
 	}
-
+	void nextPlayer()
+	{
+		if(thisPlayer == Player.O)
+			turnPlayer = Player.X;
+		else
+			turnPlayer = Player.O;
+	}
 
 }

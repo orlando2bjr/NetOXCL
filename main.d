@@ -15,6 +15,7 @@ int main(string[] argv)
 		//    throw new Exception("falha");
 	}
 	auto game = new OX();
+	game.start();
 
 	// tentar conexão
 	Socket socket;

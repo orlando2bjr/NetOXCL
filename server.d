@@ -28,44 +28,45 @@ int main(string[] argv)
 	listener.listen(1);
 	// ox test
 	auto game = new OX;
+	game.start();
 
-	writeln("Ouvindo na porta: 2525");
-	auto client = listener.accept();
-	writefln("Conexão de %s estabelecida.", client.remoteAddress().toString());
-	auto sent = client.send(to!(char[])(game.turnPlayer));
-
-	version(Windows)
-	{
-		if(SetConsoleOutputCP(consoleCP) == 0)
-			throw new Exception("falha na definiçãodo código de página do console");
-	}
-
-	auto isRunning = true;
-	char[1024] buffer;
-	while (isRunning)
-	{
-		// ler e imprimir
-		auto got = client.receive(buffer);
-		if(got > 0)
-		{
-			// posição
-			if(buffer[0] == '#' && got == 2)
-			{
-				writefln("recebi posição %s", buffer[1]);
-				int pos = buffer[1];
-			}
-			else
-				writeln(buffer[0 .. got]);
-		}
-		else
-		{
-			//		client.send(buffer[0 .. got]);
-			foreach(line; stdin.byLine)
-			{
-				client.send(line);
-				writeln(buffer[0 .. client.receive(buffer)]);
-			}
-		}
-	}
+	//writeln("Ouvindo na porta: 2525");
+	//auto client = listener.accept();
+	//writefln("Conexão de %s estabelecida.", client.remoteAddress().toString());
+	//auto sent = client.send(to!(char[])(game.turnPlayer));
+	//
+	//version(Windows)
+	//{
+	//    if(SetConsoleOutputCP(consoleCP) == 0)
+	//        throw new Exception("falha na definiçãodo código de página do console");
+	//}
+	//
+	//auto isRunning = true;
+	//char[1024] buffer;
+	//while (isRunning)
+	//{
+	//    // ler e imprimir
+	//    auto got = client.receive(buffer);
+	//    if(got > 0)
+	//    {
+	//        // posição
+	//        if(buffer[0] == '#' && got == 2)
+	//        {
+	//            writefln("recebi posição %s", buffer[1]);
+	//            int pos = buffer[1];
+	//        }
+	//        else
+	//            writeln(buffer[0 .. got]);
+	//    }
+	//    else
+	//    {
+	//        //		client.send(buffer[0 .. got]);
+	//        foreach(line; stdin.byLine)
+	//        {
+	//            client.send(line);
+	//            writeln(buffer[0 .. client.receive(buffer)]);
+	//        }
+	//    }
+	//}
     return 0;
 }
