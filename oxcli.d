@@ -476,7 +476,7 @@ class OX
 		nodeType = NodeType.Server; // servidor, não tentar mais conectar
 		Socket listener = new TcpSocket;
 		assert(listener.isAlive);
-		serverAddress = new InternetAddress("localhost", 2525);
+		//serverAddress = new InternetAddress("localhost", 2525);
 		listener.bind(serverAddress);
 		listener.listen(1);
 		consoleFixBegin();
