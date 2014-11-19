@@ -88,14 +88,18 @@ class OX
 		Client
 	}
 	auto isPlaying = true;
+	auto areThereChanges = false;
 	Occupant[9] board;
 	string[9] available;
 	size_t positionIndex;
-	string playerMessage;
+	string sendMessage;
+	string receivedMessage;
+	string message;
 	size_t playerMove;
 	Player[2] players = [Player.O, Player.X];
 	Player turnPlayer;
 	Player thisPlayer;
+	auto hasPlayerMoved = false;
 	Socket socket;
 	char[1024] buffer;
 	auto isNodeTypeUndefined = true;
@@ -149,7 +153,7 @@ class OX
 			catch (Exception e)
 			{
 				consoleFixBegin();
-					writeln("Erro: %s", e.msg);
+					writefln("Erro: %s\n", e.msg);
 					writeln("Não consegui conectar em ", serverAddress.toAddrString(), ":", serverAddress.toPortString(), ", o que deseja fazer?");
 					writeln("1) Iniciar como servidor na máquina.");
 					writeln("2) Iniciar como servidor na rede local.");
@@ -205,7 +209,6 @@ class OX
 				}
 			}
 		}
-		render();
 		switch(nodeType)
 		{
 			case NodeType.Server:
@@ -226,7 +229,7 @@ class OX
 				break;
 			default: break;
 		}
-
+		render();
 	}
 	~this() // encerra o jogo e fecha conexões
 	{
@@ -238,7 +241,11 @@ class OX
 		isPlaying = true;
 		while(isPlaying)
 		{
-			render();
+			if(areThereChanges)
+			{
+				render();
+				areThereChanges = false;
+			}
 			input();
 			update();
 		}
@@ -251,69 +258,108 @@ class OX
 			system("clear");
 		}
 		printBoard();
-		write("voce e ");
-		printPlayer(thisPlayer);
-		write("o turno eh de ");
-		printPlayer(turnPlayer);
-		writeln(playerMessage);
+		consoleFixBegin();
+			write("Você é ");
+			printPlayer(thisPlayer);
+			write("O turno é de ");
+			printPlayer(turnPlayer);
+			writeln("Comandos (apenas no seu turno):");
+			writeln("\tTexto + Enter: Envia mensagem.");
+			writeln("\t# + Númer de 1 à 9: posição.");
+		consoleFixEnd();
+
+		writeln(message);
 	}
 	void input()
 	{
 		// ler e imprimir
-		switch(nodeType)
+		if(turnPlayer != thisPlayer) // esperando o outro
 		{
-			default:break;
-			case NodeType.Server:
-				break;
-			case NodeType.Client:
-				break;
-		}
-		auto got = socket.receive(buffer);
-		auto send = "";
-		if(got > 0)
-		{
-			// posição
-			if(buffer[0] == '#' && got == 2)
+			auto got = socket.receive(buffer);
+			if(got > 0)
 			{
-				writefln("recebi posição %s", buffer[1]);
-				playerMove = buffer[1];
+				receivedMessage = to!(string)(buffer[0 .. got]);
+				//// posição
+				//if(buffer[0] == '#' && got == 2)
+				//{
+				//    receivedMessage = to!(string)(buffer[0 .. got]);
+				//}
+				//else
+				//{
+				//}
+			}
+		}
+		else // meu turno
+		{
+			foreach(line; stdin.byLine)
+				{
+					sendMessage = to!(string)(line);
+					//if(line[0] == '#' && line.length == 2)
+					//{
+					//    playerMove = line[1];
+					//    hasPlayerMoved = true;
+					//    nextPlayer();
+					//}
+					//socket.send(line);
+					break;
+				}
+		}
+	}
+	Player otherPlayer()
+	{
+		if(thisPlayer == Player.O)
+			return Player.X;
+		else
+			return Player.O;
+	}
+	void update()
+	{
+		playerMove = 0;
+		if(sendMessage.length > 0 || receivedMessage.length > 0)
+			areThereChanges = true;
+		if(turnPlayer == thisPlayer)
+		{
+			// foi uma jogada
+			if(sendMessage[0] == '#' && sendMessage.length == 2)
+			{
+				string test = to!(string)(sendMessage[1]);
+				playerMove = parse!(size_t)(test);
+				// validar jogada
+				if(playerMoves(playerMove))
+				{
+					socket.send(sendMessage);
+					updateAvailablePositions();
+					nextPlayer();
+				}
+				else
+				{
+					writeln(turnPlayer, ", esta posição já está ocupada.");
+				}
 			}
 			else
 			{
-				playerMessage = to!(string)(buffer[0 .. got]);
-				playerMove = 0;
+				message = "Eu disse: " ~ sendMessage;
+				socket.send(sendMessage);
 			}
 		}
 		else
 		{
-			if(turnPlayer == thisPlayer)
+			if(receivedMessage.length > 0)
 			{
-				foreach(line; stdin.byLine)
-					{
-						if(line[0] == '#' && line.length == 2)
-						{
-							if(thisPlayer == Player.O)
-								turnPlayer = Player.X;
-							else
-								turnPlayer = Player.O;
-						}
-						socket.send(line);
-						break;
-						//if(thisPlayer == Player.O)
-						//    thisPlayer = Player.X;
-						//else
-						//    thisPlayer = Player.O;
-					}
+				if(receivedMessage[0] == '#' && receivedMessage.length == 2)
+				{
+					string test = to!(string)(receivedMessage[1]);
+					playerMove = parse!(size_t)(test);
+					board[playerMove - 1] = otherPlayer();
+
+					nextPlayer();
+				}
+				else
+					message = "Oponente disse: " ~ receivedMessage;
 			}
 		}
-
+		sendMessage = receivedMessage = "";
 	}
-	void update()
-	{
-		if(playerMove > 0)
-			playerMoves();
-	}
-
 	void startServer(InternetAddress serverAddress)
 	{
 		nodeType = NodeType.Server; // servidor, não tentar mais conectar
@@ -342,7 +388,6 @@ class OX
 			writeln("Machados");
 	}
 	void writePosition(Occupant quadrant, size_t position)
-	
 	{
 		if(quadrant == Occupant.None)
 			write(position);
@@ -372,8 +417,7 @@ class OX
 		}
 
 	}
-	void updateAvailablePositions(Occupant[9] board, ref string[9] available)
-	{
+	void updateAvailablePositions(){
 		for(int i = 0; i < board.length; i++)
 		{
 			if(board[i] == Occupant.None)
@@ -382,31 +426,35 @@ class OX
 				available[i] = "-";
 		}
 	}
-	void playerMoves()
+	bool playerMoves(size_t toPosition)
 	{
-		int move;
-		updateAvailablePositions(board, available);
-		do
+		if(board[toPosition - 1] != Occupant.None)
+			return false;
+		else
 		{
-			write(turnPlayer, ", escolha uma posição: ");
-			readf(" %s", &move);
-			if(board[move - 1] != Occupant.None)
-			{
-				writeln(turnPlayer, ", esta posição já está ocupada.");
-				write("Por favor, ");
-			}
-		} while (board[move - 1] != Occupant.None);
-		board[move - 1] = turnPlayer;
-		printBoard();
-		nextPlayer();
+			board[toPosition - 1] = thisPlayer;
+			return true;
+		}
+		//do
+		//{
+		//    write(turnPlayer, ", escolha uma posição: ");
+		//    readf(" %s", &move);
+		//    if(board[move - 1] != Occupant.None)
+		//    {
+		//        writeln(turnPlayer, ", esta posição já está ocupada.");
+		//        write("Por favor, ");
+		//    }
+		//} while (board[move - 1] != Occupant.None);
+		//board[move - 1] = turnPlayer;
+		//printBoard();
+		//nextPlayer();
 
 	}
 	void nextPlayer()
 	{
-		if(thisPlayer == Player.O)
+		if(turnPlayer == Player.O)
 			turnPlayer = Player.X;
 		else
 			turnPlayer = Player.O;
 	}
-
 }
