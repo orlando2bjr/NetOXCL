@@ -197,7 +197,7 @@
   <filesToClean>*.obj;*.cmd;*.build;*.json;*.dep</filesToClean>
  </Config>
  <Folder name="Servidor">
-  <File path="..\OXCLI\oxcli.d" />
+  <File path="oxcli.d" />
   <File path="server.d" />
  </Folder>
 </DProject>
